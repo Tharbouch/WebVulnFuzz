@@ -2,7 +2,7 @@ import argparse
 from urllib.parse import parse_qs
 from colorama import init, Fore, Style
 from utils import request_parser, SessionManager, AdvancedCrawler, URLHandler
-from fuzzers import XSS, LFI
+from fuzzers import XSS, LFI, SQLi
 
 # Initialize colorama
 init(autoreset=True)
@@ -168,6 +168,28 @@ def main():
         print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} LFI Scan Results:")
         for result in results:
             print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
+            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
+            print(f"   Status: {result['status']} | Length: {result['length']}\n")
+    
+    if args.sqli:
+        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting SQLi fuzzing...")
+        sqli_fuzzer = SQLi(session, threads=args.threads)
+        
+        if args.payload_file:
+            try:
+                with open(args.payload_file, 'r') as file:
+                    custom_payloads = [line.strip() for line in file.readlines()]
+                sqli_fuzzer.payloads = custom_payloads
+            except Exception as e:
+                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
+                return
+        
+        results = sqli_fuzzer.fuzz(targets)
+        
+        # Print results
+        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} SQLi Scan Results:")
+        for result in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential SQLi at {result['url']}")
             print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
             print(f"   Status: {result['status']} | Length: {result['length']}\n")
 
