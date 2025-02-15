@@ -1,9 +1,14 @@
 import argparse
 from urllib.parse import parse_qs
 from colorama import init, Fore, Style
+<<<<<<< HEAD
 from utils import request_parser, SessionManager, AdvancedCrawler, URLHandler
 from fuzzers import XSS, LFI, SQLi
 
+=======
+from utils import request_parser, session_manager, crawler
+from fuzzers import CommandInjection , LFI 
+>>>>>>> 373ab0a (command-injection-implementation)
 # Initialize colorama
 init(autoreset=True)
 
@@ -110,9 +115,15 @@ def main():
     # Fuzzer options
     parser.add_argument('--xss', action='store_true', help='Enable XSS fuzzing')
     parser.add_argument('--sqli', action='store_true', help='Enable SQL injection fuzzing')
+<<<<<<< HEAD
     parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')
     parser.add_argument('--payload-file', help='Path to a file containing custom XSS payloads', default=None)
     parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads')
+=======
+    parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')  # New argument
+    parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads')  # Added threads
+    parser.add_argument('--cmdi', action='store_true', help='Enable command injection fuzzing')
+>>>>>>> 373ab0a (command-injection-implementation)
 
     args = parser.parse_args()
     
@@ -122,9 +133,38 @@ def main():
     
     targets = get_targets(args, session)
     
+<<<<<<< HEAD
     if not targets:
         print(f"{Fore.RED}[!]{Style.RESET_ALL} No valid targets found")
         return
+=======
+    if args.cmdi:
+        print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Starting CMDi fuzzing...")
+        cmdi_fuzzer = CommandInjection(session, threads=args.threads)
+        results = cmdi_fuzzer.fuzz(targets)
+
+        print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Command Injection Results:")
+        for res in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential CMDi at {res['url']}")
+            print(f"   Param: {res['param']} | Payload: {res['payload']}")
+            print(f"   Status: {res['status']} | Length: {res['length']}\n")
+    
+
+    if args.lfi:
+        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting LFI fuzzing...")
+        lfi_fuzzer = LFI(session, threads=args.threads)
+        results = lfi_fuzzer.fuzz(targets)
+        
+        # Print results
+        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} LFI Scan Results:")
+        for result in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
+            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
+            print(f"   Status: {result['status']} | Length: {result['length']}\n")
+
+
+
+>>>>>>> 373ab0a (command-injection-implementation)
 
     # Run fuzzers
     if args.xss:
