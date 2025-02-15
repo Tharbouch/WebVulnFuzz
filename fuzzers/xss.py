@@ -31,7 +31,7 @@ class XSS:
         xss_targets = []
         for target in targets:
             for param in target.get('params', []):
-                if 'text' in param['html_type'] or 'textarea' in param['html_type']:
+                if any(keyword in param['html_type'] for keyword in ['text', 'textarea', 'url']):
                     xss_targets.append(target)
                     break
         return xss_targets
@@ -41,20 +41,16 @@ class XSS:
         Test a target for XSS vulnerabilities using the defined payloads.
         """
         results = []
-        print(f"{Fore.CYAN}[*] Testing target: {target['url']}{Style.RESET_ALL}")
         for param in target['params']:
-            print(f"{Fore.CYAN}[*] Testing parameter: {param['name']}{Style.RESET_ALL}")
             for payload in self.payloads:
                 try:
                     if param['type'] == 'GET':
-                        print(f"{Fore.CYAN}[*] Injecting payload: {payload} into GET parameter: {param['name']}{Style.RESET_ALL}")
                         req = self.session.get(
                             target['url'],
                             params={param['name']: payload},
                             timeout=7
                         )
                     else:
-                        print(f"{Fore.CYAN}[*] Injecting payload: {payload} into POST parameter: {param['name']}{Style.RESET_ALL}")
                         req = self.session.request(
                             param['type'],
                             target['url'],
@@ -63,7 +59,6 @@ class XSS:
                         )
                     
                     if req.status_code == 200 and self.detect_vulnerability(req):
-                        print(f"{Fore.GREEN}[+] Potential XSS found at {target['url']} with parameter {param['name']}{Style.RESET_ALL}")
                         results.append({
                             'type': 'XSS',
                             'url': req.url,

@@ -6,18 +6,16 @@ from colorama import Fore, Style
 from utils import session_manager
 
 class AdvancedCrawler:
-    def __init__(self, session, start_url, max_urls=30, test_type=None, auth=None):
+    def __init__(self, session, start_url, max_urls=30, test_type=None):
         self.session = session
         self.start_url = start_url
         self.max_urls = max_urls
         self.test_type = test_type
-        self.auth = auth
         self.visited = set()
         self.to_visit = deque([start_url])
         self.domain = urlparse(start_url).netloc
         self.js_pattern = re.compile(r'(?:fetch|axios\.get|XMLHttpRequest)\([\"\'](.*?)[\"\']')
         self.total_discovered = 0
-        self.logged_in = False
         self.targets = []
         self.form_count = 0
         self.input_count = 0
@@ -96,19 +94,6 @@ class AdvancedCrawler:
 
         return links
 
-    def handle_login(self, response):
-        if self.auth and not self.logged_in:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Detected potential login page at {response.url}")
-            if session_manager.perform_form_login(self.session, response.url, self.auth):
-                self.logged_in = True
-                print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Successfully authenticated! Re-fetching start URL")
-                try:
-                    new_response = self.session.get(self.start_url, timeout=5)
-                    return new_response
-                except Exception as e:
-                    print(f"{Fore.RED}[!]{Style.RESET_ALL} Error re-fetching start URL: {str(e)}")
-        return response
-
     def crawl(self):
         print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting crawler at {self.start_url}")
         print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Maximum URLs to crawl: {self.max_urls}")
@@ -122,19 +107,9 @@ class AdvancedCrawler:
                 print(f"{Fore.CYAN}[>]{Style.RESET_ALL} Crawling: {url}")
                 response = self.session.get(url, timeout=5)
                 
-                # Handle login pages and authentication
-                response = self.handle_login(response)
-                
                 self.visited.add(url)
                 
                 if response.status_code == 200:
-                    # Extract content from successful responses
-                    soup = BeautifulSoup(response.content, 'html5lib')
-                    
-                    # Check for login form even after auth
-                    if not self.logged_in and soup.find('input', {'type': 'password'}):
-                        print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Login form detected but no auth credentials provided")
-                    
                     new_links = list(self.extract_links(response))
                     self.total_discovered += len(new_links)
                     self.to_visit.extend([link for link in new_links if link not in self.visited])

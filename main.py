@@ -1,7 +1,7 @@
 import argparse
 from urllib.parse import parse_qs
 from colorama import init, Fore, Style
-from utils import request_parser, session_manager, crawler
+from utils import request_parser, SessionManager, AdvancedCrawler, URLHandler
 from fuzzers import XSS, LFI
 
 # Initialize colorama
@@ -59,14 +59,13 @@ def get_targets(args, session):
         except ValueError as e:
             print(f"{Fore.RED}[!]{Style.RESET_ALL} Invalid target: {str(e)}")
 
-    if args.crawl and args.url:
+    if args.crawl:
         try:
             print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Initializing crawler")
-            crawler_instance = crawler.AdvancedCrawler(
+            crawler_instance = AdvancedCrawler(
                 session=session,
                 start_url=args.url,
                 max_urls=args.max_urls,
-                auth=args.auth,
                 test_type='lfi' if args.lfi else None
             )
             
@@ -78,6 +77,17 @@ def get_targets(args, session):
         except Exception as e:
             print(f"{Fore.RED}[!]{Style.RESET_ALL} Crawling failed: {str(e)}")
 
+    if not args.crawl and args.url:
+        url_handler = URLHandler(args.url)
+        # Verify authentication before extracting parameters
+        verify_response = session.get(args.url)
+        if verify_response.status_code == 200:
+            url_handler.extract_parameters()
+            url_handler_targets = url_handler.get_targets()
+            targets.extend(url_handler_targets)
+        else:
+            print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to access target URL. Status code: {verify_response.status_code}")
+            
     return targets
 
 def main():
@@ -106,10 +116,16 @@ def main():
 
     args = parser.parse_args()
     
-    # Initialize components
-    session = session_manager.create_session(args)
+    # Initialize session
+    session_manager = SessionManager()
+    session = session_manager.configure_session(args)
+    
     targets = get_targets(args, session)
     
+    if not targets:
+        print(f"{Fore.RED}[!]{Style.RESET_ALL} No valid targets found")
+        return
+
     # Run fuzzers
     if args.xss:
         print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting XSS fuzzing...")
@@ -141,7 +157,7 @@ def main():
             try:
                 with open(args.payload_file, 'r') as file:
                     custom_payloads = [line.strip() for line in file.readlines()]
-                xss_fuzzer.payloads = custom_payloads
+                lfi_fuzzer.payloads = custom_payloads
             except Exception as e:
                 print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
                 return
