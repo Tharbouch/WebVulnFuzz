@@ -1,8 +1,9 @@
+# main.py
 import argparse
 from urllib.parse import parse_qs
 from colorama import init, Fore, Style
 from utils import request_parser, session_manager, crawler
-
+from fuzzers import XSS  # Import the fuzzers
 
 # Initialize colorama
 init(autoreset=True)
@@ -100,8 +101,9 @@ def main():
     # Fuzzer options
     parser.add_argument('--xss', action='store_true', help='Enable XSS fuzzing')
     parser.add_argument('--sqli', action='store_true', help='Enable SQL injection fuzzing')
-    parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')  # New argument
-    parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads')  # Added threads
+    parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')
+    parser.add_argument('--payload-file', help='Path to a file containing custom XSS payloads', default=None)
+    parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads')
 
     args = parser.parse_args()
     
@@ -109,18 +111,28 @@ def main():
     session = session_manager.create_session(args)
     targets = get_targets(args, session)
     
-    # Run LFI fuzzer
-    # if args.lfi:
-    #     print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting LFI fuzzing...")
-    #     lfi_fuzzer = LFI(session, threads=args.threads)
-    #     results = lfi_fuzzer.fuzz(targets)
+    # Run fuzzers
+    if args.xss:
+        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting XSS fuzzing...")
+        xss_fuzzer = XSS(session, threads=args.threads)
         
-    #     # Print results
-    #     print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} LFI Scan Results:")
-    #     for result in results:
-    #         print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
-    #         print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
-    #         print(f"   Status: {result['status']} | Length: {result['length']}\n")
+        if args.payload_file:
+            try:
+                with open(args.payload_file, 'r') as file:
+                    custom_payloads = [line.strip() for line in file.readlines()]
+                xss_fuzzer.payloads = custom_payloads
+            except Exception as e:
+                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
+                return
+        
+        results = xss_fuzzer.fuzz(targets)
+        
+        # Print results
+        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} XSS Scan Results:")
+        for result in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential XSS at {result['url']}")
+            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
+            print(f"   Status: {result['status']} | Length: {result['length']}\n")
 
 if __name__ == '__main__':
     main()
