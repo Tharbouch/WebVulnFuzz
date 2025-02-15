@@ -1,4 +1,3 @@
-# fuzzers/xss.py
 from concurrent.futures import ThreadPoolExecutor
 from colorama import Fore, Style
 import requests

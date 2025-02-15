@@ -1,2 +1,9 @@
+venv/
+.env/
 .venv/
+
 webvulfuzz/
+
+__pycache__/
+*.py[cod]
+*$py.class
