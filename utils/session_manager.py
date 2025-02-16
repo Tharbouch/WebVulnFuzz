@@ -64,7 +64,7 @@ class SessionManager:
                 if not args.auth:
                     print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Login page detected but no credentials provided")
                     print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Use --auth username:password to authenticate")
-                    return False
+                    exit(1)
                 
                 print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Login page detected, attempting authentication")
                 if self._perform_login(initial_response.url, args.auth):
@@ -85,7 +85,7 @@ class SessionManager:
                 
         except Exception as e:
             print(f"{Fore.RED}[!]{Style.RESET_ALL} Authentication error: {str(e)}")
-            return False
+            exit(1)
 
     def _is_login_page(self, response):
         """Check if the current page is a login page"""

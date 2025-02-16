@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from colorama import Fore, Style
 import requests
 
@@ -83,6 +84,9 @@ class CommandInjection:
             return []
             
         results = []
+        original_url = target['url']
+        parsed_url = urlparse(original_url)
+        original_params = parse_qs(parsed_url.query)
         for param in target['params']:
             param_name = param['name']
             for payload in self.payloads:
