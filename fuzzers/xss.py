@@ -17,7 +17,7 @@ class XSS:
             '<scr<script>ipt>alert(document.cookie)</script>',
             '#</select><img src=1 onerror=alert(document.cookie)>'
         ]
-        self.indicators = ['alert', 'script', 'onerror']  # Keywords to detect XSS
+        self.indicators = ['alert', 'script', 'onerror']  
 
     def set_payloads(self, payload_list):
         """

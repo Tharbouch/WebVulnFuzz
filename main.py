@@ -1,12 +1,9 @@
 import argparse
 from urllib.parse import parse_qs
 from colorama import init, Fore, Style
-
 from utils import request_parser, SessionManager, AdvancedCrawler, URLHandler
-from fuzzers import XSS, LFI, SQLi
+from fuzzers import XSS, LFI, SQLi,CommandInjection
 
-from utils import request_parser, session_manager, crawler
-from fuzzers import CommandInjection , LFI 
 # Initialize colorama
 init(autoreset=True)
 
@@ -117,7 +114,7 @@ def main():
     parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')
     parser.add_argument('--payload-file', help='Path to a file containing custom XSS payloads', default=None)
 
-    parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads')  # Added threads
+    parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads') 
     parser.add_argument('--cmdi', action='store_true', help='Enable command injection fuzzing')
 
     args = parser.parse_args()
@@ -132,33 +129,6 @@ def main():
     if not targets:
         print(f"{Fore.RED}[!]{Style.RESET_ALL} No valid targets found")
         return
-
-    if args.cmdi:
-        print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Starting CMDi fuzzing...")
-        cmdi_fuzzer = CommandInjection(session, threads=args.threads)
-        results = cmdi_fuzzer.fuzz(targets)
-
-        print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Command Injection Results:")
-        for res in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential CMDi at {res['url']}")
-            print(f"   Param: {res['param']} | Payload: {res['payload']}")
-            print(f"   Status: {res['status']} | Length: {res['length']}\n")
-    
-
-    if args.lfi:
-        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting LFI fuzzing...")
-        lfi_fuzzer = LFI(session, threads=args.threads)
-        results = lfi_fuzzer.fuzz(targets)
-        
-        # Print results
-        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} LFI Scan Results:")
-        for result in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
-            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
-            print(f"   Status: {result['status']} | Length: {result['length']}\n")
-
-
-
 
     # Run fuzzers
     if args.xss:
@@ -204,6 +174,50 @@ def main():
             print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
             print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
             print(f"   Status: {result['status']} | Length: {result['length']}\n")
+    
+    if args.sqli:
+        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting SQLi fuzzing...")
+        sqli_fuzzer = SQLi(session, threads=args.threads)
+        
+        if args.payload_file:
+            try:
+                with open(args.payload_file, 'r') as file:
+                    custom_payloads = [line.strip() for line in file.readlines()]
+                sqli_fuzzer.payloads = custom_payloads
+            except Exception as e:
+                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
+                return
+        
+        results = sqli_fuzzer.fuzz(targets)
+        
+        # Print results
+        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} SQLi Scan Results:")
+        for result in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential SQLi at {result['url']}")
+            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
+            print(f"   Status: {result['status']} | Length: {result['length']}\n")
+            
+    if args.cmdi:
+        print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Starting CMDi fuzzing...")
+        cmdi_fuzzer = CommandInjection(session, threads=args.threads)
+        results = cmdi_fuzzer.fuzz(targets)
+        
+        if args.payload_file:
+            try:
+                with open(args.payload_file, 'r') as file:
+                    custom_payloads = [line.strip() for line in file.readlines()]
+                cmdi_fuzzer.payloads = custom_payloads
+            except Exception as e:
+                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
+                return
+        
+        results = cmdi_fuzzer.fuzz(targets)
+
+        print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Command Injection Results:")
+        for res in results:
+            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential CMDi at {res['url']}")
+            print(f"   Param: {res['param']} | Payload: {res['payload']}")
+            print(f"   Status: {res['status']} | Length: {res['length']}\n")
     
 if __name__ == '__main__':
     main()

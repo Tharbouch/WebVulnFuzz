@@ -84,21 +84,24 @@ class CommandInjection:
             
         results = []
         for param in target['params']:
+            param_name = param['name']
             for payload in self.payloads:
+                new_params = original_params.copy()
+                new_params[param_name] = [payload]
+                new_query = urlencode(new_params, doseq=True)
+                new_url = urlunparse((
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    parsed_url.path,
+                    parsed_url.params,
+                    new_query,
+                    parsed_url.fragment
+                ))
                 try:
                     if param['type'].upper() == 'GET':
-                        req = self.session.get(
-                            url=target['url'],
-                            params={param['name']: payload},
-                            timeout=7
-                        )
+                        req = self.session.get(new_url, timeout=7)
                     else:
-                        req = self.session.request(
-                            method=param['type'].upper(),
-                            url=target['url'],
-                            data={param['name']: payload},
-                            timeout=7
-                        )
+                        req = self.session.request(param['type'], new_url, timeout=7)
 
                     if req.status_code in [200, 302] and self.detect_vulnerability(req):
                         results.append({
