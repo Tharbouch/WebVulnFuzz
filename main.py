@@ -3,6 +3,8 @@ from urllib.parse import parse_qs
 from colorama import init, Fore, Style
 from utils import request_parser, SessionManager, AdvancedCrawler, URLHandler
 from fuzzers import XSS, LFI, SQLi,CommandInjection
+import json
+from datetime import datetime
 
 # Initialize colorama
 init(autoreset=True)
@@ -89,6 +91,46 @@ def get_targets(args, session):
             print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to access target URL. Status code: {verify_response.status_code}")
             
     return targets
+def save_results_to_json(all_results, output_file):
+    """Save scanning results to a JSON file"""
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if not output_file:
+        output_file = f"fuzzing_results_{timestamp}.json"
+    
+    formatted_results = {
+        "scan_timestamp": timestamp,
+        "results": all_results
+    }
+    
+    with open(output_file, 'w') as f:
+        json.dump(formatted_results, f, indent=4)
+    
+    print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Results saved to: {output_file}")
+
+def run_fuzzer(fuzzer_class, name, session, targets, args):
+    """Run a specific fuzzer and return its results"""
+    print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting {name} fuzzing...")
+    fuzzer = fuzzer_class(session, threads=args.threads)
+    
+    if args.payload_file:
+        try:
+            with open(args.payload_file, 'r') as file:
+                custom_payloads = [line.strip() for line in file.readlines()]
+            fuzzer.payloads = custom_payloads
+        except Exception as e:
+            print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file for {name}: {str(e)}")
+            return []
+    
+    results = fuzzer.fuzz(targets)
+    
+    # Print results
+    print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} {name} Scan Results:")
+    for result in results:
+        print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential {name} at {result['url']}")
+        print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
+        print(f"   Status: {result['status']} | Length: {result['length']}\n")
+    
+    return {"type": name, "findings": results}
 
 def main():
     print_banner()
@@ -110,13 +152,13 @@ def main():
     # Fuzzer options
     parser.add_argument('--xss', action='store_true', help='Enable XSS fuzzing')
     parser.add_argument('--sqli', action='store_true', help='Enable SQL injection fuzzing')
-
     parser.add_argument('--lfi', action='store_true', help='Enable LFI fuzzing')
+    parser.add_argument('--cmdi', action='store_true', help='Enable command injection fuzzing')
     parser.add_argument('--payload-file', help='Path to a file containing custom XSS payloads', default=None)
 
     parser.add_argument('-t', '--threads', type=int, default=5, help='Number of threads') 
-    parser.add_argument('--cmdi', action='store_true', help='Enable command injection fuzzing')
-
+    parser.add_argument('--output', help='Output JSON file path')
+    
     args = parser.parse_args()
     
     # Initialize session
@@ -125,99 +167,35 @@ def main():
     
     targets = get_targets(args, session)
     
-
     if not targets:
         print(f"{Fore.RED}[!]{Style.RESET_ALL} No valid targets found")
         return
 
-    # Run fuzzers
-    if args.xss:
-        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting XSS fuzzing...")
-        xss_fuzzer = XSS(session, threads=args.threads)
-        
-        if args.payload_file:
-            try:
-                with open(args.payload_file, 'r') as file:
-                    custom_payloads = [line.strip() for line in file.readlines()]
-                xss_fuzzer.payloads = custom_payloads
-            except Exception as e:
-                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
-                return
-        
-        results = xss_fuzzer.fuzz(targets)
-        
-        # Print results
-        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} XSS Scan Results:")
-        for result in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential XSS at {result['url']}")
-            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
-            print(f"   Status: {result['status']} | Length: {result['length']}\n")
-            
-    if args.lfi:
-        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting LFI fuzzing...")
-        lfi_fuzzer = LFI(session, threads=args.threads)
-        
-        if args.payload_file:
-            try:
-                with open(args.payload_file, 'r') as file:
-                    custom_payloads = [line.strip() for line in file.readlines()]
-                lfi_fuzzer.payloads = custom_payloads
-            except Exception as e:
-                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
-                return
-        
-        results = lfi_fuzzer.fuzz(targets)
-        
-        # Print results
-        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} LFI Scan Results:")
-        for result in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential LFI at {result['url']}")
-            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
-            print(f"   Status: {result['status']} | Length: {result['length']}\n")
+    # Store all results
+    all_results = []
     
-    if args.sqli:
-        print(f"\n{Fore.CYAN}[*]{Style.RESET_ALL} Starting SQLi fuzzing...")
-        sqli_fuzzer = SQLi(session, threads=args.threads)
-        
-        if args.payload_file:
-            try:
-                with open(args.payload_file, 'r') as file:
-                    custom_payloads = [line.strip() for line in file.readlines()]
-                sqli_fuzzer.payloads = custom_payloads
-            except Exception as e:
-                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
-                return
-        
-        results = sqli_fuzzer.fuzz(targets)
-        
-        # Print results
-        print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} SQLi Scan Results:")
-        for result in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential SQLi at {result['url']}")
-            print(f"   Parameter: {result['param']} | Payload: {result['payload']}")
-            print(f"   Status: {result['status']} | Length: {result['length']}\n")
-            
-    if args.cmdi:
-        print(f"{Fore.CYAN}[*]{Style.RESET_ALL} Starting CMDi fuzzing...")
-        cmdi_fuzzer = CommandInjection(session, threads=args.threads)
-        results = cmdi_fuzzer.fuzz(targets)
-        
-        if args.payload_file:
-            try:
-                with open(args.payload_file, 'r') as file:
-                    custom_payloads = [line.strip() for line in file.readlines()]
-                cmdi_fuzzer.payloads = custom_payloads
-            except Exception as e:
-                print(f"{Fore.RED}[!]{Style.RESET_ALL} Failed to read payload file: {str(e)}")
-                return
-        
-        results = cmdi_fuzzer.fuzz(targets)
+    # Define fuzzer configurations
+    fuzzers = [
+        (args.xss, XSS, "XSS"),
+        (args.lfi, LFI, "LFI"),
+        (args.sqli, SQLi, "SQLi"),
+        (args.cmdi, CommandInjection, "Command Injection")
+    ]
+    
+    # Run enabled fuzzers
+    for enabled, fuzzer_class, name in fuzzers:
+        if enabled:
+            results = run_fuzzer(fuzzer_class, name, session, targets, args)
+            if results["findings"]:
+                all_results.append(results)
+    
+    # Save results to JSON if any findings were discovered
+    if args.output:
+        if all_results:
+            save_results_to_json(all_results, args.output)
+        else:
+            print(f"\n{Fore.GREEN}[+]{Style.RESET_ALL} No vulnerabilities found in the scan.")
+    
 
-        print(f"{Fore.GREEN}[+]{Style.RESET_ALL} Command Injection Results:")
-        for res in results:
-            print(f"{Fore.YELLOW}[!]{Style.RESET_ALL} Potential CMDi at {res['url']}")
-            print(f"   Param: {res['param']} | Payload: {res['payload']}")
-            print(f"   Status: {res['status']} | Length: {res['length']}\n")
-    
 if __name__ == '__main__':
     main()

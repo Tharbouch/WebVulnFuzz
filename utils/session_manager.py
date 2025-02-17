@@ -77,7 +77,7 @@ class SessionManager:
                         return True
                     else:
                         print(f"{Fore.RED}[!]{Style.RESET_ALL} Authentication failed - still on login page")
-                        return False
+                        exit(1)
             else:
                 print(f"{Fore.GREEN}[+]{Style.RESET_ALL} No authentication required or already authenticated")
                 self.is_authenticated = True
